@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>代碼瀑布</title>
+    <meta charset="UTF-8" />
+    <meta name="description" content="" />
+    <meta name="keywords" content="" />
+    <script src="dat.gui.min.js"></script>
+    <script src="ease.js"></script>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+      }
+      #canvas {
+        display: block;
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="canvas"></canvas>
+  </body>
+
+  <script>
+    (function () {
+      var canvas, ctx, cWidth, cHeight;
+      canvas = document.getElementById("canvas");
+      ctx = canvas.getContext("2d");
+      cWidth = canvas.width = window.innerWidth;
+      cHeight = canvas.height = window.innerHeight;
+
+      function setShadow(offsetX, offsetY, blur, color) {
+        ctx.shadowColor = color;
+        ctx.shadowBlur = blur;
+        ctx.shadowOffsetX = offsetX;
+        ctx.shadowOffsetY = offsetY;
+      }
+      function clearShadow() {
+        setShadow(0, 0, 0, "rgba(0, 0, 0, 0)");
+      }
+
+      function rgbToHsl(r, g, b) {
+        (r /= 255), (g /= 255), (b /= 255);
+        var max = Math.max(r, g, b),
+          min = Math.min(r, g, b);
+        var h,
+          s,
+          l = (max + min) / 2;
+
+        if (max == min) {
+          h = s = 0; // achromatic
+        } else {
+          var d = max - min;
+          s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+          switch (max) {
+            case r:
+              h = (g - b) / d + (g < b ? 6 : 0);
+              break;
+            case g:
+              h = (b - r) / d + 2;
+              break;
+            case b:
+              h = (r - g) / d + 4;
+              break;
+          }
+          h /= 6;
+        }
+        return [Math.floor(h * 360), Math.round(s * 100), Math.round(l * 100)];
+      }
+
+      function parseRGB(value, type) {
+        var rgb = [];
+        if (/\#/g.test(value)) {
+          var temp = value.replace(/\#/, "");
+          rgb[0] = parseInt("0x" + temp.slice(0, 2));
+          rgb[1] = parseInt("0x" + temp.slice(2, 4));
+          rgb[2] = parseInt("0x" + temp.slice(4, 6));
+        } else {
+          var temp = value.replace(/rgb\((\d+\,\d+\,\d+)\)/g, "$1");
+          temp = temp.split(/\,/g);
+          rgb = temp.map(function (el) {
+            return parseInt(el);
+          });
+        }
+        return rgb;
+      }
+      function colorMix(valueA, valueB, ratio) {
+        return valueA.map(function (el, i) {
+          return el + (valueB[i] - el) * ratio;
+        });
+      }
+
+      var word = "abcdefghijklmnopqrstuvwxyz0123456789";
+      var blankNum = 5;
+      var fontSize = 14;
+      var dragLength = 20;
+      var startColor = "#ffffff";
+      var endColor = "#00ff00";
+      var startColor_rgb = parseRGB(startColor);
+      var endColor_rgb = parseRGB(endColor);
+      var startColor_hsl = rgbToHsl(startColor_rgb[0], startColor_rgb[1], startColor_rgb[2]);
+      var endColor_hsl = rgbToHsl(endColor_rgb[0], endColor_rgb[1], endColor_rgb[2]);
+      var columns, rows, w, drops;
+
+      var oldTime = Date.now();
+      var count = 0;
+
+      var gui = new dat.GUI();
+
+      var data = {
+        word: word,
+        blankNum: blankNum,
+        fontSize: fontSize,
+        dragLength: dragLength,
+        startColor: startColor,
+        endColor: endColor,
+      };
+
+      var controller_word = gui.add(data, "word").name("顯示文字");
+      var controller_blankNum = gui.add(data, "blankNum", 0, 20, 1).name("空白文字數量");
+      var controller_fontSize = gui.add(data, "fontSize", 4, 24, 1).name("文字大小");
+      var controller_dragLength = gui.add(data, "dragLength", 10, 30, 1).name("拖曳長度");
+      var controller_startColor = gui.addColor(data, "startColor").name("開頭顏色");
+      var controller_endColor = gui.addColor(data, "endColor").name("結尾顏色");
+      controller_word.onFinishChange(function (value) {
+        word = value;
+        w = [];
+        for (var j = 0; j < rows; j++) {
+          for (var i = 0; i < columns; i++) {
+            w.push(Math.floor(Math.random() * (word.length + blankNum)));
+          }
+        }
+      });
+      controller_blankNum.onFinishChange(function (value) {
+        blankNum = value;
+        w = [];
+        for (var j = 0; j < rows; j++) {
+          for (var i = 0; i < columns; i++) {
+            w.push(Math.floor(Math.random() * (word.length + blankNum)));
+          }
+        }
+      });
+      controller_fontSize.onFinishChange(function (value) {
+        fontSize = value;
+        columns = Math.ceil(cWidth / fontSize);
+        rows = Math.ceil(cHeight / fontSize);
+        w = [];
+        for (var j = 0; j < rows; j++) {
+          for (var i = 0; i < columns; i++) {
+            w.push(Math.floor(Math.random() * (word.length + blankNum)));
+          }
+        }
+        drops = [];
+        for (var i = 0; i < columns; i++) {
+          drops[i] = Math.floor(Math.random() * (rows + dragLength));
+        }
+      });
+      controller_dragLength.onFinishChange(function (value) {
+        dragLength = value;
+      });
+
+      controller_startColor.onFinishChange(function (value) {
+        startColor = value;
+        startColor_rgb = parseRGB(startColor);
+        startColor_hsl = rgbToHsl(startColor_rgb[0], startColor_rgb[1], startColor_rgb[2]);
+      });
+      controller_endColor.onFinishChange(function (value) {
+        endColor = value;
+        endColor_rgb = parseRGB(endColor);
+        endColor_hsl = rgbToHsl(endColor_rgb[0], endColor_rgb[1], endColor_rgb[2]);
+      });
+
+      onresize();
+      window.addEventListener("resize", onresize);
+      function onresize() {
+        cWidth = canvas.width = window.innerWidth;
+        cHeight = canvas.height = window.innerHeight;
+        columns = Math.ceil(cWidth / fontSize);
+        rows = Math.ceil(cHeight / fontSize);
+        w = [];
+        for (var j = 0; j < rows; j++) {
+          for (var i = 0; i < columns; i++) {
+            w.push(Math.floor(Math.random() * (word.length + blankNum)));
+          }
+        }
+        drops = [];
+        for (var i = 0; i < columns; i++) {
+          drops[i] = Math.floor(Math.random() * (rows + dragLength));
+        }
+      }
+      function update() {
+        var i, len;
+        for (i = 0, len = drops.length; i < len; i++) {
+          if (drops[i] > rows + dragLength) {
+            if (Math.random() > 0.95) {
+              drops[i] = -1;
+            }
+          } else {
+            drops[i]++;
+          }
+        }
+      }
+      function draw() {
+        clearShadow();
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, cWidth, cHeight);
+
+        ctx.font = fontSize + "px Arial";
+        ctx.textAlign = "center";
+        /*ctx.textBaseline = "middle";*/
+        var i, j, len, jj, rate, shadow, hsl, a, color, index;
+        for (j = 0; j < dragLength; j++) {
+          rate = (j + 1) / dragLength;
+
+          shadow = 5 + (3 - 5) * easingFunctions.easeOutCubic(rate);
+          hsl = colorMix(startColor_hsl, endColor_hsl, easingFunctions.easeOutQuint(rate));
+          a = easingFunctions.easeOutQuad(1 - rate);
+          color = "hsla(" + hsl[0] + ", " + hsl[1] + "%, " + hsl[2] + "%, " + a + ")";
+          ctx.fillStyle = color;
+          setShadow(0, 0, shadow, color);
+
+          for (i = 0, len = drops.length; i < len; i++) {
+            jj = drops[i] - j;
+            if (jj >= 0 && jj <= rows) {
+              index = jj * columns + i;
+              ctx.fillText(w[index] >= word.length ? "" : word.charAt(w[index]), (i + 0.5) * fontSize, jj * fontSize);
+              if (Math.random() > 0.98) {
+                w[index] = Math.floor(Math.random() * (word.length + blankNum));
+              }
+            }
+          }
+        }
+      }
+      var animate = function () {
+        requestAnimationFrame(animate);
+
+        var nowTime = Date.now();
+        var delta = (nowTime - oldTime) / 1000;
+        oldTime = nowTime;
+
+        count += delta;
+        if (count >= 0.08) {
+          count %= 0.08;
+          draw();
+          update();
+        }
+      };
+      draw();
+      animate();
+    })();
+  </script>
+</html>
